@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+args=($@)
+chat_result_file="${args[0]}"
+unset args[0]
+input="${args[@]}"
+
+if [ -z "$chat_result_file"]; then
+    echo "invalid chat state file"
+    return
+fi
+
+Bin=$(which coder4emacs)
+BinPath=${Bin%/*}
+
+# init chat state
+if [ ! -f "$chat_result_file" ]; then
+    export GPTSCRIPT_CHAT_STATE=null
+    gptscript --default-model "$LLMODEL" $BinPath/coder.gpt $input > "$chat_result_file"
+fi
+
+# run gptscript chat
+export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$chat_result_file")
+gptscript --default-model "$LLMODEL" $BinPath/coder.gpt $input > "$chat_result_file"
+jq -r '.state.continuation.result' $chat_result_file
