@@ -104,11 +104,11 @@
     (when kill-ring
       (dotimes (i 10)
         (let ((substring (current-kill i t)))
-          ;;(when (and substring (string-match-p "\n.*\n" substring))
+          (when (and substring (string-match-p "\n.*\n" substring))
             (call-process cleanup-bin nil nil nil
                     copilot-state
                     substring)
-            )))
+            ))))
 
     ;; run copilot-bin streaming stdout into buffer catching ctrl-g
     (with-local-quit
