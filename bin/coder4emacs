@@ -18,12 +18,12 @@ BinPath=${Bin%/*}
 if [ ! -f "$copilot_result_file" ]; then
     echo "coder4emacs: init gptscript chat state" >> $logfile
     export GPTSCRIPT_CHAT_STATE=null
-    gptscript --default-model "$LLMODEL" --disable-cache --debug $BinPath/coder.gpt "do not code this time, just say hi" > "$copilot_result_file" 2>> $logfile
+    gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt "do not code this time, just say hi" > "$copilot_result_file" 2>> $logfile
 fi
 
 # run gptscript copilot
 echo "coder4emacs: run gptscript chat to send $input to LLM for code completion" >> $logfile
 export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$copilot_result_file")
-gptscript --default-model "$LLMODEL" --disable-cache --debug $BinPath/coder.gpt $input > "$copilot_result_file"  2>> $logfile
+gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt $input > "$copilot_result_file"  2>> $logfile
 echo "coder4emacs: raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_result_file)" >> $logfile
 jq -r '.state.continuation.result' $copilot_result_file
