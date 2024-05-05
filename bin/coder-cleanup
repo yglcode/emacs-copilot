@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+args=($@)
+copilot_result_file="${args[0]}"
+unset args[0]
+input="${args[@]}"
+logfile="${copilot_result_file}.log"
+
+echo "coder-cleanup: if exist, delete from copilot history: $input" >> $logfile
+
+if [ -z "$copilot_result_file"]; then
+    echo "coder-cleanup: invalid copilot result file $copilot_result_file" >> $logfile
+    return
+fi
+
+idx=$(jq "[.state.continuation.state.completion.Messages[]|if .role==\"assistant\" and (.content[0].text|tostring|gsub(\"\\\\s+\"; \" \") |contains(\"${input}\")) then true else false end] | index(true)" $copilot_result_file)
+
+if [[ $idx != null ]]; then
+    echo "coder-cleanup: going to delete copilot history entries [$(($idx-1))-${idx}]" >> $logfile
+    tmpfile="${copilot_result_file}.tmp"
+    jq "del(.state.continuation.state.completion.Messages[$idx-1,$idx])" $copilot_result_file > $tmpfile
+    mv $tmpfile $copilot_result_file
+else
+    echo "coder-cleanup: did not find $input in copilot history" >> $logfile
+fi
+

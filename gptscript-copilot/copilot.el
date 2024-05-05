@@ -28,10 +28,9 @@
 ;; to use gptscript to connect to both remote and local LLMs.
 ;; 1. it use LLMs to complete your code or comments.
 ;; 2. it use gptscript to connect to LLMs and use gptscript chat state
-;;    to save your edit history; currently chat state/history are not
-;;    cleaned up if you delete generated code from your emacs buffer.
-;; 3. it is language agnostic and language is determed by file extension.
-;; 4. use `C-c C-k' to start completion process and `C-g' to stop it.
+;;    to save your edit history.
+;; 3. it is language agnostic and language is determined by file extension.
+;; 4. use `C-c C-k' to start completion process and 'C-g' to stop it.
 ;;    currently there key bindings for c, python, go, java, you can add
 ;;    key bindings for your language in .emacs similar to following:
 ;;    (defun copilot-c-hook ()
@@ -71,6 +70,13 @@
   :type 'string
   :group 'copilot)
 
+;; app to clean up code completion history
+(defcustom cleanup-bin
+  "coder-cleanup"
+  "cleanup copilot completion history."
+  :type 'string
+  :group 'copilot)
+
 ;;;###autoload
 (defun copilot-complete ()
   (interactive)
@@ -94,19 +100,15 @@
                   "[INST]Generate %s code to complete:[/INST]\n%s"
                    lang code)))
 
-    ;;;; clean up chat histrory/state is not implemented yet
-    ;; iterate text deleted within editor then purge it from prompt
-    ;; (when kill-ring
-    ;;   (save-current-buffer
-    ;;     (find-file hist)
-    ;;     (dotimes (i 10)
-    ;;       (let ((substring (current-kill i t)))
-    ;;         (when (and substring (string-match-p "\n.*\n" substring))
-    ;;           (goto-char (point-min))
-    ;;           (while (search-forward substring nil t)
-    ;;             (delete-region (- (point) (length substring)) (point))))))
-    ;;     (save-buffer 0)
-    ;;     (kill-buffer (current-buffer))))
+    ;; iterate text deleted within editor then purge it from copilot-state
+    (when kill-ring
+      (dotimes (i 10)
+        (let ((substring (current-kill i t)))
+          ;;(when (and substring (string-match-p "\n.*\n" substring))
+            (call-process cleanup-bin nil nil nil
+                    copilot-state
+                    substring)
+            )))
 
     ;; run copilot-bin streaming stdout into buffer catching ctrl-g
     (with-local-quit
