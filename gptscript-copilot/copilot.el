@@ -84,15 +84,17 @@
          (inhibit-quit t)
          (curfile (buffer-file-name))
          (copilot-state (concat curfile ".copilot-state"))
+         (removed-code (concat curfile ".removed"))
          (lang (file-name-extension curfile))
 
-         ;; extract current line, to left of caret
-         ;; and the previous line, to give the llm
+         ;; capture request/prompt string for copilot/LLM,
+         ;; search backward until empty line or head of file
          (code (save-excursion
-                 (dotimes (i 2)
-                   (when (> (line-number-at-pos) 1)
-                     (previous-line)))
                  (beginning-of-line)
+                 (while (progn
+                          (previous-line)
+                          (and (> (line-number-at-pos) 1)
+                             (not (string-match-p "^[[:space:]]*$" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))))))
                  (buffer-substring-no-properties (point) spot)))
 
          ;; create new prompt for this interaction
@@ -102,13 +104,25 @@
 
     ;; iterate text deleted within editor then purge it from copilot-state
     (when kill-ring
-      (dotimes (i 10)
-        (let ((substring (current-kill i t)))
-          (when (and substring (string-match-p "\n.*\n" substring))
-            (call-process cleanup-bin nil nil nil
-                    copilot-state
-                    substring)
-            ))))
+      (save-current-buffer
+        ;;(find-file removed-code)
+        (set-buffer (find-file-noselect removed-code))
+        (dotimes (i (min 10 (length kill-ring)))
+          (let ((substring (current-kill i t)))
+            (when (and substring (string-match-p "\n.*\n" substring))
+              (goto-char (point-min))
+              (if (not (search-forward substring nil t))
+                  (progn
+                    (call-process cleanup-bin nil nil nil
+                                  copilot-state
+                                  substring)
+                    (goto-char (point-max))
+                    (insert substring)
+                    ))
+              )))
+        (save-buffer 0)
+        (kill-buffer (current-buffer))
+        ))
 
     ;; run copilot-bin streaming stdout into buffer catching ctrl-g
     (with-local-quit
@@ -121,6 +135,7 @@
            (mdstr (concat "```" lang))
            (mdlen (length mdstr)))
       (save-excursion
+        ;; cleanup raw code
         (goto-char spot)
         (while (search-forward "\\_" end t)
           (backward-char)
@@ -134,7 +149,30 @@
         (while (search-forward "```" end t)
           (delete-backward-char 3 nil)
           (setq end (- end 3)))
-      ))
+        ;; update kill-ring and removed-code file
+        (let ((new-code (buffer-substring-no-properties spot end))
+              (i 0)
+              (found nil))
+          (when kill-ring
+            (while (and (< i (length kill-ring)) (not found))
+              (let ((substring (elt kill-ring i)))
+                (when (and substring
+                           (string-match-p "\n.*\n" substring)
+                           (string-match-p substring new-code))
+                  (delete kill-ring i)
+                  (setq found t)
+                  ))
+              (setq i (+ i 1))
+              ))
+          ;; remove new data from removed-code file
+          ;;(find-file removed-code)
+          (set-buffer (find-file-noselect removed-code))
+          (goto-char (point-min))
+          (while (search-forward new-code nil t)
+            (delete-region (- (point) (length new-code)) (point)))
+          (save-buffer 0)
+          (kill-buffer (current-buffer)))
+          ))
     
     ))
   

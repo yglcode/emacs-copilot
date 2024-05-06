@@ -53,12 +53,14 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
          ```export LLMODEL="mistral-7b-instruct-v0.2.Q4_K_M.gguf from http://127.0.0.1:8080/v1"```
          
 3. Usage:
-   * place your cursor at end of line or below the line you need complete,
-       this line could be a comment, a beginning (incomplete) part of code such as function signature or a type definition:
+   * place your cursor at end of code block or below the code block you need complete,
+   
+       this code block can be one line, or several lines, emacs copilot will search backwards until a empty line.
+       
+       this block could be a comment, a beginning (incomplete) part of code such as function signature or a type definition:
        ```go
        func bubble_sort(data []int) {
        ```
-       currently you can capture only 2 lines of info.
    * use ```C-c C-k``` to start completion process and ```C-g``` to stop it.
    * copilot (or LLMs) is language neutral, it uses file extension to identify the language to use.
 
