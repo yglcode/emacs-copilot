@@ -46,16 +46,13 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
        * [install ollama](https://ollama.com/) and pull a model such as llama3
        * run "ollama serve"
        * choose model:
-       
            ```export LLMODEL="llama3:latest from http://localhost:11434/v1"```
-       
      * llamafile:
        * [download llamafiles](https://huggingface.co/jartine)
        * [make it executable and run it](https://github.com/Mozilla-Ocho/llamafile)
        * point to it: assuming you run mistral7b
-       
            ```export LLMODEL="mistral-7b-instruct-v0.2.Q4_K_M.gguf from http://127.0.0.1:8080/v1"```
-         
+
 3. Code completion usage:
 
    select a code or comment block (as prompt request) and trigger completion process.
