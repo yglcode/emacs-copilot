@@ -71,12 +71,52 @@
   :group 'copilot)
 
 ;;;###autoload
+(defun copilot-reset()
+  "Clear all LLM conversation entries from history"
+  (interactive)
+  (when-let* ((curfile (buffer-file-name))
+              (copilot-state (concat curfile ".copilot-state"))
+              (should-stop (file-exists-p copilot-state))
+              (logfile (concat curfile ".copilot-state.log"))
+              (json-object-type 'hash-table)
+              (json-array-type 'list)
+              (json-key-type 'string)
+              (changed 0))
+    (save-excursion
+      ;; load/decode copilot-state json data and conversation msgs
+      (set-buffer (get-buffer-create "copilot-state"))
+      (goto-char (point-min))
+      (insert-file-contents copilot-state)
+      (goto-char (point-min))
+      (setq data (json-read))
+      (setq msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
+      ;; clear all user-LLM conversation entries, except first 3 messages
+      (let ((i 3))
+        (while (< i (length msgs))
+          (remove-nth i msgs)
+          (setq changed (1+ changed))
+          ))
+      (puthash "content" "" data)
+      (puthash "result" "" (gethash "continuation" (gethash "state" data)))
+
+      ;; update state file content
+      (when (> changed 0)
+        ;; log state cleanup message
+        (write-region "copilot: reset copilot-state, code completion history clean up, update file\n" nil logfile 'append 'silent)
+        (goto-char (point-min))
+        (insert (json-encode data))
+        (write-region (point-min) (point) copilot-state nil 'silent))
+      ;; release temp buffer
+      (kill-buffer (current-buffer))
+      )))
+
+;;;###autoload
 (defun copilot-complete (beg end &optional region)
   "When available, use selected text as prompt for code completion. When called from Lisp, use the text between BEG and END, unless the optional argument REGION is non-nil, in which case ignore BEG and END, and use the current region instead. If no text or region selected, will search from (point) backwards till reaching an empty line or head of file, use this region as prompt"
   (interactive (progn
-                   (if (use-region-p)
-                       (list (region-beginning) (region-end) 'region)
-                     (list nil nil 'region))))
+                 (if (use-region-p)
+                     (list (region-beginning) (region-end) 'region)
+                   (list nil nil 'region))))
   (let* ((spot (point))
          (inhibit-quit t)
          (curfile (buffer-file-name))
@@ -109,7 +149,7 @@
     (setq deactivate-mark t)
 
     ;; iterate text deleted within editor then purge it from copilot-state
-    (when kill-ring
+    (when (and kill-ring (file-exists-p copilot-state))
       (let* ((json-object-type 'hash-table)
              (json-array-type 'list)
              (json-key-type 'string)
@@ -227,7 +267,9 @@
 (defun copilot-java-hook ()
   (define-key java-mode-map (kbd "C-c C-k") 'copilot-complete))
 (add-hook 'java-common-hook 'copilot-java-hook)
+
 (global-set-key (kbd "C-c C-k") 'copilot-complete)
+(global-set-key (kbd "C-c C-e") 'copilot-reset)
 
 (provide 'copilot)
 

@@ -45,22 +45,29 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
      * ollama: 
        * [install ollama](https://ollama.com/) and pull a model such as llama3
        * run "ollama serve"
-       * choose model: ```export LLMODEL="llama3:latest from http://localhost:11434/v1"```
+       * choose model:
+       
+           ```export LLMODEL="llama3:latest from http://localhost:11434/v1"```
+       
      * llamafile:
        * [download llamafiles](https://huggingface.co/jartine)
        * [make it executable and run it](https://github.com/Mozilla-Ocho/llamafile)
        * point to it: assuming you run mistral7b
-         ```export LLMODEL="mistral-7b-instruct-v0.2.Q4_K_M.gguf from http://127.0.0.1:8080/v1"```
+       
+           ```export LLMODEL="mistral-7b-instruct-v0.2.Q4_K_M.gguf from http://127.0.0.1:8080/v1"```
          
 3. Code completion usage:
+
    select a code or comment block (as prompt request) and trigger completion process.
    * use ```C-c C-k``` to start completion process and ```C-g``` to stop it.
    * copilot (or LLMs) is language neutral, it uses file extension to identify the language to use.
-   * the target block can be a single line or many continuous lines of code or comment, by simply place your cursor at end of or below it, you designate it as the completion target (emacs copilot will search backwards until a empty line). this could be a comment, a beginning (incomplete) part of code such as function signature or a type definition:
+   * the target block can be a single line or many continuous lines of code or comment, by simply place your cursor at end of or below it, you designate it as the completion target (emacs copilot will search backwards until a empty line). this could be a comment requesting some code, a beginning (incomplete) part of code such as a function or a type definition:
        ```go
        func bubble_sort(data []int) {
+       ......
+       //use above defined Node and Edge types, define a Graph type
        ```
-   * you can also use emacs [region selection](https://www.gnu.org/software/emacs/manual/html_node/emacs/Mark.html) to select a whole region of separate/discontinuous code and comments segments to send to LLM as prompt. You can even select whole file content. Of course the last (few) lines of selected region shoule be incomplete code or comments requesting for specific code generation.
+   * you can also use emacs [region selection](https://www.gnu.org/software/emacs/manual/html_node/emacs/Mark.html) to select a whole region of code and comments (including many types and function definitions) to send to LLM as prompt. You can even select whole file content. Of course the last (few) lines of selected region shoule be incomplete code or comments requesting for specific code generation.
 
 4. Issues:
    * local/small LLMs perform poorly compared to large/commercial LLMs
