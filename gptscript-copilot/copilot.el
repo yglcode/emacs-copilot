@@ -71,8 +71,12 @@
   :group 'copilot)
 
 ;;;###autoload
-(defun copilot-complete ()
-  (interactive)
+(defun copilot-complete (beg end &optional region)
+  "When available, use selected text as prompt for code completion. When called from Lisp, use the text between BEG and END, unless the optional argument REGION is non-nil, in which case ignore BEG and END, and use the current region instead. If no text or region selected, will search from (point) backwards till reaching an empty line or head of file, use this region as prompt"
+  (interactive (progn
+                   (if (use-region-p)
+                       (list (region-beginning) (region-end) 'region)
+                     (list nil nil 'region))))
   (let* ((spot (point))
          (inhibit-quit t)
          (curfile (buffer-file-name))
@@ -80,20 +84,29 @@
          (logfile (concat curfile ".copilot-state.log"))
          (lang (file-name-extension curfile))
 
-         ;; capture request/prompt string for copilot/LLM,
-         ;; search backward until empty line or head of file
-         (code (save-excursion
-                 (beginning-of-line)
-                 (while (progn
-                          (previous-line)
-                          (and (> (line-number-at-pos) 1)
-                               (not (string-match-p "^[[:space:]]*$" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))))))
-                 (buffer-substring-no-properties (point) spot)))
+         ;; use selected region text for code prompt if available
+         ;; or capture code prompt by search backward until empty line or head of file
+         (code (if (and beg end)
+                   (progn
+                     ;;(message "selected region: -%s-%s\n" beg end)
+                     (buffer-substring-no-properties beg end)
+                     )
+                 (save-excursion
+                   (beginning-of-line)
+                   (while (progn
+                            (previous-line)
+                            (and (> (line-number-at-pos) 1)
+                                 (not (string-match-p "^[[:space:]]*$" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))))))
+                   (buffer-substring-no-properties (point) spot))
+                 ))
 
          ;; create new prompt for this interaction
          (prompt (format
                   "[INST]Generate %s code to complete:[/INST]\n%s"
                   lang code)))
+
+    ;; remove mark for region
+    (setq deactivate-mark t)
 
     ;; iterate text deleted within editor then purge it from copilot-state
     (when kill-ring
