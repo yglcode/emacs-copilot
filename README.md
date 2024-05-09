@@ -59,7 +59,8 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
 3. Code completion usage:
 
    select a code or comment block (as prompt request) and trigger completion process.
-   * use ```C-c C-k``` to start completion process and ```C-g``` to stop it.
+   * use ```C-c C-k``` (or elisp function copilot-complete()) to start completion process and ```C-g``` to stop it.
+   * use ```C-c C-e``` (or elisp function copilot-reset()) to clear copilot code-completion history, if you need a coding memory reset for brand new tasks.
    * copilot (or LLMs) is language neutral, it uses file extension to identify the language to use.
    * the target block can be a single line or many continuous lines of code or comment, by simply place your cursor at end of or below it, you designate it as the completion target (emacs copilot will search backwards until a empty line). this could be a comment requesting some code, a beginning (incomplete) part of code such as a function or a type definition:
        ```go
