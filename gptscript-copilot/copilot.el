@@ -24,37 +24,14 @@
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
 
-;; This is a simple adaption of Justine's original Emacs Copilot code
+;; This is a adaption of Justine's original Emacs Copilot code
 ;; to use gptscript to connect to both remote and local LLMs.
 ;; 1. it use LLMs to complete your code or comments.
 ;; 2. it use gptscript to connect to LLMs and use gptscript chat state
 ;;    to save your edit history.
 ;; 3. it is language agnostic and language is determined by file extension.
 ;; 4. use `C-c C-k' to start completion process and 'C-g' to stop it.
-;;    currently there key bindings for c, python, go, java, you can add
-;;    key bindings for your language in .emacs similar to following:
-;;    (defun copilot-c-hook ()
-;;      (define-key c-mode-base-map (kbd "C-c C-k") 'copilot-complete))
 ;;
-;; To get started, try writing the first line of a function, e.g.
-;;
-;;     bool is_prime(int x) {
-;;
-;; Then place your caret at the end of the line, and press `C-c C-k` to
-;; hand over control to your LLM, which should generate the rest of the
-;; function implementation for you. Things are also tuned so the LLM is
-;; likely to stop as soon as a function is made. Explanations and other
-;; kind of ELI5 commentary is avoided too.
-;;
-;; Later on, if you were to write something like this:
-;;
-;;     int main() {
-;;       for (int i = 0; i < 100;
-;;
-;; And ask your LLM to complete that, then your LLM will likely recall
-;; that you two wrote an is_prime() function earlier, even though it's
-;; only considering those two lines in the current instruction. You'll
-;; most likely then see it decide to generate code to print the primes
 
 ;;; Code:
 
@@ -65,47 +42,49 @@
 
 ;; use gptscript to connect to LLMs
 (defcustom copilot-bin
-  "coder4emacs"
+  "copilot4emacs"
   "use gptscript to connect to LLMs and complete code."
   :type 'string
   :group 'copilot)
 
 ;;;###autoload
 (defun copilot-reset()
-  "Clear all LLM conversation entries from history"
+  "Clear all LLM conversation from code completion history"
   (interactive)
   (when-let* ((curfile (buffer-file-name))
-              (copilot-state (concat curfile ".copilot-state"))
+              (fname (file-name-base curfile))
+              (copilot-data-dir (file-name-concat (file-name-directory curfile) ".copilot_data"))
+              (copilot-state (file-name-concat copilot-data-dir (concat fname ".copilot-state")))
               (should-stop (file-exists-p copilot-state))
-              (logfile (concat curfile ".copilot-state.log"))
+              (logfile (file-name-concat copilot-data-dir (concat fname ".copilot-state.log")))
               (json-object-type 'hash-table)
               (json-array-type 'list)
-              (json-key-type 'string)
-              (changed 0))
+              (json-key-type 'string))
     (save-excursion
       ;; load/decode copilot-state json data and conversation msgs
       (set-buffer (get-buffer-create "copilot-state"))
       (goto-char (point-min))
       (insert-file-contents copilot-state)
       (goto-char (point-min))
-      (setq data (json-read))
-      (setq msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
-      ;; clear all user-LLM conversation entries, except first 3 messages
-      (let ((i 3))
+      (let* ((data (json-read))
+             (msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
+             (changed 0)
+             (i 3))
+        ;; clear all user-LLM conversation entries, except first 3 messages
         (while (< i (length msgs))
           (remove-nth i msgs)
           (setq changed (1+ changed))
-          ))
-      (puthash "content" "" data)
-      (puthash "result" "" (gethash "continuation" (gethash "state" data)))
+          )
+        (puthash "content" "" data)
+        (puthash "result" "" (gethash "continuation" (gethash "state" data)))
 
-      ;; update state file content
-      (when (> changed 0)
-        ;; log state cleanup message
-        (write-region "copilot: reset copilot-state, code completion history clean up, update file\n" nil logfile 'append 'silent)
-        (goto-char (point-min))
-        (insert (json-encode data))
-        (write-region (point-min) (point) copilot-state nil 'silent))
+        ;; update state file content
+        (when (> changed 0)
+          ;; log state cleanup message
+          (write-region "copilot: reset copilot-state, code completion history clean up, update file\n" nil logfile 'append 'silent)
+          (goto-char (point-min))
+          (insert (json-encode data))
+          (write-region (point-min) (point) copilot-state nil 'silent)))
       ;; release temp buffer
       (kill-buffer (current-buffer))
       )))
@@ -120,8 +99,10 @@
   (let* ((spot (point))
          (inhibit-quit t)
          (curfile (buffer-file-name))
-         (copilot-state (concat curfile ".copilot-state"))
-         (logfile (concat curfile ".copilot-state.log"))
+         (fname (file-name-base curfile))
+         (copilot-data-dir (file-name-concat (file-name-directory curfile) ".copilot_data"))
+         (copilot-state (file-name-concat copilot-data-dir (concat fname ".copilot-state")))
+         (logfile (file-name-concat copilot-data-dir (concat fname ".copilot-state.log")))
          (lang (file-name-extension curfile))
 
          ;; use selected region text for code prompt if available
@@ -150,54 +131,50 @@
 
     ;; iterate text deleted within editor then purge it from copilot-state
     (when (and kill-ring (file-exists-p copilot-state))
-      (let* ((json-object-type 'hash-table)
+      (let ((json-object-type 'hash-table)
              (json-array-type 'list)
-             (json-key-type 'string)
-             (changed 0)
-             (data nil)
-             (msgs nil))
+             (json-key-type 'string))
         (save-excursion
           ;; load/decode copilot-state json data and conversation msgs
           (set-buffer (get-buffer-create "copilot-state"))
           (goto-char (point-min))
           (insert-file-contents copilot-state)
           (goto-char (point-min))
-          (setq data (json-read))
-          (setq msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
-          ;; iterate over kill-ring, remove killed items from copilot-state
-          (let ((i 0) (j 0) (killstr nil)
-                (kill-count (min 10 (length kill-ring))))
+          (let* ((data (json-read))
+                 (msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
+                 (changed 0) (j 0)
+                 (kill-count (min 10 (length kill-ring))))
+            ;; iterate over kill-ring, remove killed items from copilot-state
             (while (< j kill-count)
-              (let ((substring (current-kill j t)))
-                (when (and substring
-                           (string-match-p "\n.*\n" substring))
-                  (setq i 0)
-                  (setq killstr (string-trim (substring-no-properties substring)))
-                  (while (< i (length msgs))
-                    (when-let* ((msg (elt msgs i))
-                                (assistant (string= "assistant" (gethash "role" msg)))
-                                (assistant-msg (gethash "text" (elt (gethash "content" msg) 0)))
-                                (found (string-search killstr (string-trim assistant-msg))))
-                      ;; log state cleanup message
-                      (write-region (format "copilot: remove from copilot-state entries %d-%d:\n%s\n" (1- i) i assistant-msg) nil logfile 'append 'silent)
-                      (remove-nth i msgs)
-                      (remove-nth (1- i) msgs)
-                      (setq changed (1+ changed))
-                      ;;exit msgs loop
-                      (setq i (length msgs))
-                      )
-                    (setq i (1+ i))
-                    )))
+              (when-let* ((substring (current-kill j t))
+                          (found1 (string-match-p "\n.*\n" substring))
+                          (i 0)
+                          (killstr (string-trim (substring-no-properties substring))))
+                (while (< i (length msgs))
+                  (when-let* ((msg (elt msgs i))
+                              (assistant (string= "assistant" (gethash "role" msg)))
+                              (assistant-msg (gethash "text" (elt (gethash "content" msg) 0)))
+                              (found (string-search killstr (string-trim assistant-msg))))
+                    ;; log state cleanup message
+                    (write-region (format "copilot: remove from copilot-state entries %d-%d:\n%s\n" (1- i) i assistant-msg) nil logfile 'append 'silent)
+                    (remove-nth i msgs)
+                    (remove-nth (1- i) msgs)
+                    (setq changed (1+ changed))
+                    ;;exit msgs loop
+                    (setq i (length msgs))
+                    )
+                  (setq i (1+ i))
+                  ))
               (setq j (1+ j))
               )
-            )
-          ;; update state file content
-          (when (> changed 0)
-            ;; log state cleanup message
-            (write-region "copilot: copilot-state updated, update file\n" nil logfile 'append 'silent)
-            (goto-char (point-min))
-            (insert (json-encode data))
-            (write-region (point-min) (point) copilot-state nil 'silent))
+            
+            ;; update state file content
+            (when (> changed 0)
+              ;; log state cleanup message
+              (write-region "copilot: copilot-state updated, update file\n" nil logfile 'append 'silent)
+              (goto-char (point-min))
+              (insert (json-encode data))
+              (write-region (point-min) (point) copilot-state nil 'silent)))
           ;; release temp buffer
           (kill-buffer (current-buffer))
           )))
@@ -232,15 +209,15 @@
           (let ((new-code (string-trim (buffer-substring-no-properties spot end)))
                 (i 0))
             (while (< i (length kill-ring))
-              (let ((substring (elt kill-ring i)))
-                (when (and substring
-                           (string-match-p "\n.*\n" substring)
-                           (string-search (string-trim (substring-no-properties substring)) new-code))
-                  ;; log state cleanup message
-                  (write-region (format "copilot: delete from kill-ring: %s\n" (string-trim (substring-no-properties substring))) nil logfile 'append 'silent)
-                  (setq kill-ring (remove-nth i kill-ring))
-                  (setq i (1- i))
-                  ))
+              (when-let* ((killstring (elt kill-ring i))
+                          (matched (string-match-p "\n.*\n" killstring))
+                          (substring (string-trim (substring-no-properties killstring)))
+                          (found (string-search substring new-code)))
+                ;; log state cleanup message
+                (write-region (format "copilot: delete from kill-ring: %s\n" substring) nil logfile 'append 'silent)
+                (setq kill-ring (remove-nth i kill-ring))
+                (setq i (1- i))
+                )
               (setq i (1+ i))
               )))
         ))

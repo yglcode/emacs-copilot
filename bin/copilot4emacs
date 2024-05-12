@@ -1,29 +1,37 @@
 #!/usr/bin/env bash
 
 args=($@)
-copilot_result_file="${args[0]}"
+copilot_data="${args[0]}"
+copilot_data_dir=${copilot_data%/*}
+copilot_data_file=${copilot_data##/*/}
 unset args[0]
 input="${args[@]}"
-logfile="$copilot_result_file".log
+copilot_log_file="$copilot_data_file".log
 
-if [ -z "$copilot_result_file"]; then
-    echo "coder4emacs: invalid copilot result file $copilot_result_file" >> $logfile
+if [ -z "$copilot_data_dir"] || [ -z "$copilot_data_file"]; then
+    echo "copilot4emacs: unexpected error: invalid copilot data file \"$copilot_data_dir/$copilot_data_file\""
     return
 fi
 
-Bin=$(which coder4emacs)
+if [ ! -d $copilot_data_dir ]; then
+    mkdir $copilot_data_dir
+fi
+
+copilot_file="$copilot_data_dir/$copilot_data_file"
+logfile="$copilot_data_dir/$copilot_log_file"
+Bin=$(which copilot4emacs)
 BinPath=${Bin%/*}
 
 # init copilot state
-if [ ! -f "$copilot_result_file" ]; then
-    echo "coder4emacs: init gptscript chat state" >> $logfile
+if [ ! -s "$copilot_file" ]; then
+    echo "copilot4emacs: init gptscript chat state" >> $logfile
     export GPTSCRIPT_CHAT_STATE=null
-    gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt "do not code this time, just say hi" > "$copilot_result_file" 2>> $logfile
+    gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt "do not code this time, just say hi" > $copilot_file 2>> $logfile
 fi
 
 # run gptscript copilot
-echo "coder4emacs: run gptscript chat to send $input to LLM for code completion" >> $logfile
-export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$copilot_result_file")
-gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt $input > "$copilot_result_file"  2>> $logfile
-echo "coder4emacs: raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_result_file)" >> $logfile
-jq -r '.state.continuation.result' $copilot_result_file
+echo "copilot4emacs: run gptscript chat to send to LLM: $input" >> $logfile
+export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$copilot_file")
+gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt $input > "$copilot_file"  2>> $logfile
+echo "copilot4emacs: raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_file)" >> $logfile
+jq -r '.state.continuation.result' $copilot_file
