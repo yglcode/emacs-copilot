@@ -54,18 +54,51 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
            ```export LLMODEL="mistral-7b-instruct-v0.2.Q4_K_M.gguf from http://127.0.0.1:8080/v1"```
 
 3. Code completion usage:
+   
+    select a code or comment block (as prompt request) and start completion process.
 
-   select a code or comment block (as prompt request) and trigger completion process.
-   * use ```C-c C-k``` (or elisp function copilot-complete()) to start completion process and ```C-g``` to stop it.
-   * use ```C-c C-e``` (or elisp function copilot-reset()) to clear copilot code-completion history, if you need a coding memory reset for brand new tasks.
-   * copilot (or LLMs) is language neutral, it uses file extension to identify the language to use.
-   * the target block can be a single line or many continuous lines of code or comment, by simply place your cursor at end of or below it, you designate it as the completion target (emacs copilot will search backwards until a empty line). this could be a comment requesting some code, a beginning (incomplete) part of code such as a function or a type definition:
-       ```go
-       func bubble_sort(data []int) {
-       ......
-       //use above defined Node and Edge types, define a Graph type
-       ```
-   * you can also use emacs [region selection](https://www.gnu.org/software/emacs/manual/html_node/emacs/Mark.html) to select a whole region of code and comments (including many types and function definitions) to send to LLM as prompt. You can even select whole file content. Of course the last (few) lines of selected region shoule be incomplete code or comments requesting for specific code generation.
+   * actions to start code completion
+      * use ```C-c C-k``` (or elisp function copilot-complete()) to start completion process and ```C-g``` to stop it.
+      * use ```C-c C-e``` (or elisp function copilot-reset()) to clear copilot code-completion history, if you need a coding memory reset for brand new tasks.
+      * copilot (or LLMs) is language neutral, it uses file extension to identify the language to use.
+  
+   * how to select target text (code or documents or comments) block:
+      * the target block can be a single line or many continuous lines of code or comment, by simply place your cursor at end of or below it, you designate it as the completion target (emacs copilot will search backwards until a empty line). this could be a comment requesting some code, a beginning (incomplete) part of code such as a function or a type definition:
+        ```go
+        func bubble_sort(data []int) {
+        ......
+        //use above defined Node and Edge types, define a Graph type
+        ```
+      * you can also use emacs [region selection](https://www.gnu.org/software/emacs/manual/html_node/emacs/Mark.html) to select a whole region of code and comments (including many types and function definitions) to send to LLM as prompt. You can even select whole file content. Of course the last (few) lines of selected region shoule be incomplete code or comments requesting for specific code generation.
+
+   * use documents and comments as generic prompting facility for code transformation and generation.
+  
+      you can add documents or comment lines at end of a target range of code (types and functions) to prompt LLM for desired code changes and generation, then select this range including the last comment/prompt lines and start  completion process. LLM will generate new code with transformations you requested.
+     * add docs and comments: 
+        ```go
+        type Graph struct {
+          Nodes []*Node
+          Edges []*Edge
+        }
+        //add documents and comments to above types and their fields
+        ```
+      * add tags to types' fields for json serialization
+        ```go
+        type Graph struct { 
+          ... 
+        }
+        //add tags for above types for json serialization
+        ```
+      * add unit tests
+        ```go
+        func bubble_sort(data []int) {
+          ...
+        }
+        func quick_sort(data []int) {
+          ...
+        }
+        //add table driven unit tests for above functions
+        ```
 
 4. Issues:
    * local/small LLMs perform poorly compared to large/commercial LLMs
