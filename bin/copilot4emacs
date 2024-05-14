@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 
 args=($@)
-copilot_data="${args[0]}"
-copilot_data_dir=${copilot_data%/*}
-copilot_data_file=${copilot_data##/*/}
+copilot_role="${args[0]}"
+copilot_file="${args[1]}"
+copilot_data_dir=${copilot_file%/*}
+logfile="${args[2]}"
+unset args[2]
+unset args[1]
 unset args[0]
 input="${args[@]}"
-copilot_log_file="$copilot_data_file".log
 
-if [ -z "$copilot_data_dir"] || [ -z "$copilot_data_file"]; then
-    echo "copilot4emacs: unexpected error: invalid copilot data file \"$copilot_data_dir/$copilot_data_file\""
+if [ -z "$copilot_data_dir"] || [ -z "$copilot_file"]; then
+    echo "copilot4emacs: unexpected error: invalid copilot data file \"$copilot_data_dir, $copilot_file\""
     return
 fi
 
@@ -17,8 +19,6 @@ if [ ! -d $copilot_data_dir ]; then
     mkdir $copilot_data_dir
 fi
 
-copilot_file="$copilot_data_dir/$copilot_data_file"
-logfile="$copilot_data_dir/$copilot_log_file"
 Bin=$(which copilot4emacs)
 BinPath=${Bin%/*}
 
@@ -26,12 +26,12 @@ BinPath=${Bin%/*}
 if [ ! -s "$copilot_file" ]; then
     echo "copilot4emacs: init gptscript chat state" >> $logfile
     export GPTSCRIPT_CHAT_STATE=null
-    gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt "do not code this time, just say hi" > $copilot_file 2>> $logfile
+    gptscript --default-model "$LLMODEL" --disable-cache $BinPath/"$copilot_role".gpt "do not code this time, just say hi" > $copilot_file 2>> $logfile
 fi
 
 # run gptscript copilot
 echo "copilot4emacs: run gptscript chat to send to LLM: $input" >> $logfile
 export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$copilot_file")
-gptscript --default-model "$LLMODEL" --disable-cache $BinPath/coder.gpt $input > "$copilot_file"  2>> $logfile
+gptscript --default-model "$LLMODEL" --disable-cache $BinPath/"$copilot_role".gpt $input > "$copilot_file"  2>> $logfile
 echo "copilot4emacs: raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_file)" >> $logfile
 jq -r '.state.continuation.result' $copilot_file

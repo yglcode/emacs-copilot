@@ -1,5 +1,3 @@
-#!/usr/bin/env gptscript
-
 InternalPrompt: false
 temperature: 0.1
 chat: true

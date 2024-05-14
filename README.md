@@ -53,13 +53,13 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
        * point to it: assuming you run mistral7b
            ```export LLMODEL="mistral-7b-instruct-v0.2.Q4_K_M.gguf from http://127.0.0.1:8080/v1"```
 
-3. Code completion usage:
+3. Copilot as coder (code completion):
    
     select a code or comment block (as prompt request) and start completion process.
 
    * actions to start code completion
       * use ```C-c C-k``` (or elisp function copilot-complete()) to start completion process and ```C-g``` to stop it.
-      * use ```C-c C-e``` (or elisp function copilot-reset()) to clear copilot code-completion history, if you need a coding memory reset for brand new tasks.
+      * use ```C-c C-x C-k``` (or elisp function copilot-reset()) to clear copilot code-completion history, if you need a coding memory reset for brand new tasks.
       * copilot (or LLMs) is language neutral, it uses file extension to identify the language to use.
   
    * how to select target text (code or documents or comments) block:
@@ -99,6 +99,26 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         }
         //add table driven unit tests for above functions
         ```
+4. Copilot as expert/advisor (code review and advice):
+   * actions to start expert conversation
+      * use ```C-c C-e``` (or elisp function copilot-expert()) to start expert conversation and ```C-g``` to stop it.
+      * use ```C-c C-x C-e`` (or elisp function copilot-reset()) to clear copilot expert conversation history.
+   * use documents and comments as generic prompting for copilot expert. 
+     * Similar to the cases of "Copilot as coder", you can add comments under target code block to ask expert to review code, find bug, or recommend improvement:
+        ```go
+        type ... {...}
+        func ... {...}
+        //review above type, tell me what is it for
+        //review above type, can you find any bug
+        //given above code, how to make it faster
+        ```
+     * You can also ask general CS questions:
+        ```code
+        //teach me about dijkstra algorithm
+        ```
+5. Copilot as robin (for funny talk):
+    * use ```C-c C-y``` to start talking to robin
+    * use ```C-c C-x C-y``` to reset conversation
 
-4. Issues:
+6. Issues:
    * local/small LLMs perform poorly compared to large/commercial LLMs

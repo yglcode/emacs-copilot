@@ -47,16 +47,29 @@
   :type 'string
   :group 'copilot)
 
+(defcustom copilot-data-directory
+  ".copilot_data"
+  "local directory to save copilot data."
+  :type 'string
+  :group 'copilot)
+
 ;;;###autoload
-(defun copilot-reset()
+(defun copilot-reset-all()
+  "Clear all LLM conversation from code completion history"
+  (interactive)
+  ;;(copilot-reset(role))     
+  )
+
+;;;###autoload
+(defun copilot-reset(role)
   "Clear all LLM conversation from code completion history"
   (interactive)
   (when-let* ((curfile (buffer-file-name))
               (fname (file-name-base curfile))
-              (copilot-data-dir (file-name-concat (file-name-directory curfile) ".copilot_data"))
-              (copilot-state (file-name-concat copilot-data-dir (concat fname ".copilot-state")))
+              (copilot-data-dir (file-name-concat (file-name-directory curfile) copilot-data-directory))
+              (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state")))
               (should-stop (file-exists-p copilot-state))
-              (logfile (file-name-concat copilot-data-dir (concat fname ".copilot-state.log")))
+              (logfile (file-name-concat copilot-data-dir (concat fname ".copilot.log")))
               (json-object-type 'hash-table)
               (json-array-type 'list)
               (json-key-type 'string))
@@ -94,15 +107,42 @@
   "When available, use selected text as prompt for code completion. When called from Lisp, use the text between BEG and END, unless the optional argument REGION is non-nil, in which case ignore BEG and END, and use the current region instead. If no text or region selected, will search from (point) backwards till reaching an empty line or head of file, use this region as prompt"
   (interactive (progn
                  (if (use-region-p)
-                     (list (region-beginning) (region-end) 'region)
-                   (list nil nil 'region))))
+                     (list (region-beginning) (region-end))
+                   (list nil nil))))
+  (copilot-do beg end "coder")
+  )
+
+;;;###autoload
+(defun copilot-expert (beg end &optional region)
+  "When available, use selected text as prompt for copilot expert. If no text or region selected, will search from (point) backwards till reaching an empty line or head of file, use this region as prompt"
+  (interactive (progn
+                 (if (use-region-p)
+                     (list (region-beginning) (region-end))
+                   (list nil nil))))
+  (copilot-do beg end "expert")
+  )
+
+;;;###autoload
+(defun copilot-robin (beg end &optional region)
+  "When available, use selected text as prompt for the comedian. If no text or region selected, will search from (point) backwards till reaching an empty line or head of file, use this region as prompt"
+  (interactive (progn
+                 (if (use-region-p)
+                     (list (region-beginning) (region-end))
+                   (list nil nil))))
+  (copilot-do beg end "robin")
+  )
+
+;;;###autoload
+(defun copilot-do (beg end role)
+  "Perform generic copilot operations"
+  (interactive)
   (let* ((spot (point))
          (inhibit-quit t)
          (curfile (buffer-file-name))
          (fname (file-name-base curfile))
-         (copilot-data-dir (file-name-concat (file-name-directory curfile) ".copilot_data"))
-         (copilot-state (file-name-concat copilot-data-dir (concat fname ".copilot-state")))
-         (logfile (file-name-concat copilot-data-dir (concat fname ".copilot-state.log")))
+         (copilot-data-dir (file-name-concat (file-name-directory curfile) copilot-data-directory))
+         (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state")))
+         (logfile (file-name-concat copilot-data-dir (concat fname ".copilot.log")))
          (lang (file-name-extension curfile))
 
          ;; use selected region text for code prompt if available
@@ -122,9 +162,14 @@
                  ))
 
          ;; create new prompt for this interaction
-         (prompt (format
-                  "[INST]Generate %s code to complete:[/INST]\n%s"
-                  lang code)))
+         (prompt (if (string= role "coder")
+                     (format
+                      "[INST]Generate %s code to complete:[/INST]\n%s"
+                      lang code)
+                   (format
+                    "[INST]Perform the following action as %s:[/INST]\n%s"
+                    role code)
+                   )))
 
     ;; remove mark for region
     (setq deactivate-mark t)
@@ -132,8 +177,8 @@
     ;; iterate text deleted within editor then purge it from copilot-state
     (when (and kill-ring (file-exists-p copilot-state))
       (let ((json-object-type 'hash-table)
-             (json-array-type 'list)
-             (json-key-type 'string))
+            (json-array-type 'list)
+            (json-key-type 'string))
         (save-excursion
           ;; load/decode copilot-state json data and conversation msgs
           (set-buffer (get-buffer-create "copilot-state"))
@@ -182,7 +227,9 @@
     ;; run copilot-bin streaming stdout into buffer catching ctrl-g
     (with-local-quit
       (call-process copilot-bin nil (list (current-buffer) nil) t
+                    role
                     copilot-state
+                    logfile
                     prompt))
 
     ;; get rid of most markdown syntax
@@ -191,19 +238,20 @@
            (mdlen (length mdstr)))
       (save-excursion
         ;; cleanup raw code
-        (goto-char spot)
-        (while (search-forward "\\_" end t)
-          (backward-char)
-          (delete-backward-char 1 nil)
-          (setq end (- end 1)))
-        (goto-char spot)
-        (while (search-forward mdstr end t)
-          (delete-backward-char mdlen nil)
-          (setq end (- end mdlen)))
-        (goto-char spot)
-        (while (search-forward "```" end t)
-          (delete-backward-char 3 nil)
-          (setq end (- end 3)))
+        (when (string= role "coder")
+          (goto-char spot)
+          (while (search-forward "\\_" end t)
+            (backward-char)
+            (delete-backward-char 1 nil)
+            (setq end (- end 1)))
+          (goto-char spot)
+          (while (search-forward mdstr end t)
+            (delete-backward-char mdlen nil)
+            (setq end (- end mdlen)))
+          (goto-char spot)
+          (while (search-forward "```" end t)
+            (delete-backward-char 3 nil)
+            (setq end (- end 3))))
         ;; update kill-ring
         (when kill-ring
           (let ((new-code (string-trim (buffer-substring-no-properties spot end)))
@@ -246,7 +294,13 @@
 (add-hook 'java-common-hook 'copilot-java-hook)
 
 (global-set-key (kbd "C-c C-k") 'copilot-complete)
-(global-set-key (kbd "C-c C-e") 'copilot-reset)
+(global-set-key (kbd "C-c C-x C-k") #'(lambda() (interactive) (copilot-reset "coder")))
+(global-set-key (kbd "C-c C-e") 'copilot-expert)
+(global-set-key (kbd "C-c C-x C-e") #'(lambda() (interactive) (copilot-reset "expert")))
+(global-set-key (kbd "C-c C-y") 'copilot-robin)
+(global-set-key (kbd "C-c C-x C-y") #'(lambda() (interactive) (copilot-reset "robin")))
+;;(global-set-key (kbd "C-c C-e") 'copilot-reset)
+;;(global-set-key (kbd "C-c C-v") 'copilot-reset)
 
 (provide 'copilot)
 
