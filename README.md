@@ -117,6 +117,9 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         //teach me about dijkstra algorithm
         ```
 5. Copilot as robin (for funny talk):
+   
+    use plain text or comments as prompt for robin.
+   
     * use ```C-c C-y``` to start talking to robin
     * use ```C-c C-x C-y``` to reset conversation
 
