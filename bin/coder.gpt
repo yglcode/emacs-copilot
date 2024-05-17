@@ -1,4 +1,4 @@
-InternalPrompt: false
+Tools: sys.read
 temperature: 0.1
 chat: true
 

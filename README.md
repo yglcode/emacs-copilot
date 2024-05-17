@@ -1,10 +1,17 @@
 ### emacs copilot using gptscript
 
-Justine Tunney has a nice little [emacs copilot package](https://github.com/jart/emacs-copilot). It uses llamafiles to run local LLMs to serve the code completion requests. However it is tightly integrated with llamafiles, has its own cache and history facilities, it is not very easy to extend it to use other LLMs, either local or remote.
+Justine Tunney has a nice little [emacs copilot package](https://github.com/jart/emacs-copilot). It uses llamafiles to run local LLMs to serve the code completion requests. However it is tightly integrated with llamafiles, not easy to use with other LLMs, either local or remote.
 
-[GPTScript](https://github.com/gptscript-ai/gptscript) has a great plugin architecture, enables using tools from github repos, and connecting to either local LLMs (such as ollama, llamafiles), or remote LLMs (mistral, anthropic, fireworks, etc.), as long as they support OpenAI compatible api or there are providers (or "shim") which does the api translation. GPTScript has [open source providers for major cloud vendors](https://docs.gptscript.ai/alternative-model-providers).
+[GPTScript](https://github.com/gptscript-ai/gptscript) has a great plugin architecture, enables using tools from github repos, and connecting to local LLMs (ollama, llamafiles) and remote LLMs (mistral, anthropic, etc.), as long as they support OpenAI compatible api or there are providers (or "shim") which does the api translation. GPTScript has [open source providers for major cloud vendors](https://docs.gptscript.ai/alternative-model-providers).
 
-So this repo is an attempt to adapt Justine's nice little package to use GPTScript to connect to local/remote LLMs. It uses GPTScript chat mode (chat state) to transfer the code completion history/context to LLMs, so that LLMs can generate new code based on previous code. When you delete("kill") code from emacs editor, it will also be deleted from code completion context (chat state) when next time you request LLMs for new code.
+So this repo was started as an attempt to adapt Justine's nice little package to use GPTScript to connect to local/remote LLMs. It uses GPTScript chat mode (chat state) to transfer the code completion context to LLMs, so that LLMs can generate new code based on previous code. When you delete("kill") code from emacs editor, it will also be deleted from code completion history.
+
+During further integration with GPTScript, this package takes on new directions:
+
+    * allow seleting a region of code/text thru emacs region-select as completion target, so we can pass a whole chunk of code (even whole file content) to LLM, thus enable code transformation such as adding docs or annotations to code blocks
+    * support two separate copilot persona:
+        * coder: for clean code generation
+        * expert/teacher: for code review, chat/discussion and code summarization
 
 1. Installation:
    * first [install GPTScript as instructed](https://github.com/gptscript-ai/gptscript).
@@ -77,6 +84,7 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
   
       you can add documents or comment lines at end of a target range of code (types and functions) to prompt LLM for desired code changes and generation, then select this range including the last comment/prompt lines and start  completion process. LLM will generate new code with transformations you requested.
      * add docs and comments
+     
         ```go
         type Graph struct {
           Nodes []*Node
@@ -85,6 +93,7 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         //add documents and comments to above types and their fields
         ```
       * add tags to types' fields for json serialization
+      
         ```go
         type Graph struct { 
           ... 
@@ -92,6 +101,7 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         //add tags for above types for json serialization
         ```
       * add unit tests
+      
         ```go
         func bubble_sort(data []int) {
           ...
@@ -101,13 +111,17 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         }
         //add table driven unit tests for above functions
         ```
-4. Copilot as expert/advisor (code review and advice):
+      * generate simple one file program
+        
+        ```go
+        //based on the open api spec in petstore.yaml, write a go server serving the api at port 9090
+        ```
+4. Copilot as expert (code review and chat):
    * actions to start expert conversation
       * use ```C-c C-e``` (or elisp function copilot-expert()) to start expert conversation and ```C-g``` to stop it.
       * use ```C-c C-x C-e``` (or elisp function copilot-reset()) to clear copilot expert conversation history.
-   * use documents and comments as generic prompting for copilot expert. 
-     * Similar to the cases of "Copilot as coder", you can add comments under target code block to ask expert to review code, find bug, or recommend improvement
-     
+   * use documents and comments as generic prompting for copilot expert, add comments under target code block to ask expert to review code, find bug, or recommend improvement
+   
         ```go
         type ... {...}
         func ... {...}
@@ -115,11 +129,18 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         //review above type, can you find any bug
         //given above code, how to make it faster
         ```
-     * You can also ask general CS questions
+   * You can also ask general CS questions
      
         ```code
         //teach me about dijkstra algorithm
         ```
+   * code summarization
+   
+       ```go
+       //find go files in this directory and summarize each of them in less than 25 words
+       //summarize http.go in less than 20 words
+       //find api.go and summarize it
+       ```
 5. Copilot as robin (for funny talk):
    
     use plain text or comments as prompt for robin.
