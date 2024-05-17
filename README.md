@@ -34,7 +34,9 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
    * remote LLMs:
      * for most LLMs vendors, you need their API keys (and credits for your test)
      * set up api keys env vars as instructed, such as 
-       * mistral: ```export GPTSCRIPT_PROVIDER_API_MISTRAL_AI_API_KEY=<your mistral api key>```
+       * mistral:
+       
+            ```export GPTSCRIPT_PROVIDER_API_MISTRAL_AI_API_KEY=<your mistral api key>```
      * set LLMODEL to point to your target LLMs, such as
        * OpenAI: 
          * ```export LLMODEL="gpt-3.5-turbo-0125"``` 
@@ -74,7 +76,7 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
    * use documents and comments as generic prompting facility for code transformation and generation.
   
       you can add documents or comment lines at end of a target range of code (types and functions) to prompt LLM for desired code changes and generation, then select this range including the last comment/prompt lines and start  completion process. LLM will generate new code with transformations you requested.
-     * add docs and comments: 
+     * add docs and comments
         ```go
         type Graph struct {
           Nodes []*Node
@@ -102,9 +104,10 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
 4. Copilot as expert/advisor (code review and advice):
    * actions to start expert conversation
       * use ```C-c C-e``` (or elisp function copilot-expert()) to start expert conversation and ```C-g``` to stop it.
-      * use ```C-c C-x C-e`` (or elisp function copilot-reset()) to clear copilot expert conversation history.
+      * use ```C-c C-x C-e``` (or elisp function copilot-reset()) to clear copilot expert conversation history.
    * use documents and comments as generic prompting for copilot expert. 
-     * Similar to the cases of "Copilot as coder", you can add comments under target code block to ask expert to review code, find bug, or recommend improvement:
+     * Similar to the cases of "Copilot as coder", you can add comments under target code block to ask expert to review code, find bug, or recommend improvement
+     
         ```go
         type ... {...}
         func ... {...}
@@ -112,7 +115,8 @@ So this repo is an attempt to adapt Justine's nice little package to use GPTScri
         //review above type, can you find any bug
         //given above code, how to make it faster
         ```
-     * You can also ask general CS questions:
+     * You can also ask general CS questions
+     
         ```code
         //teach me about dijkstra algorithm
         ```

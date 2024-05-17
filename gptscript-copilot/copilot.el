@@ -55,9 +55,11 @@
 
 ;;;###autoload
 (defun copilot-reset-all()
-  "Clear all LLM conversation from code completion history"
+  "Clear all LLM history"
   (interactive)
-  ;;(copilot-reset(role))     
+  (copilot-reset "coder")     
+  (copilot-reset "expert")     
+  (copilot-reset "robin")     
   )
 
 ;;;###autoload
@@ -299,8 +301,8 @@
 (global-set-key (kbd "C-c C-x C-e") #'(lambda() (interactive) (copilot-reset "expert")))
 (global-set-key (kbd "C-c C-y") 'copilot-robin)
 (global-set-key (kbd "C-c C-x C-y") #'(lambda() (interactive) (copilot-reset "robin")))
-;;(global-set-key (kbd "C-c C-e") 'copilot-reset)
-;;(global-set-key (kbd "C-c C-v") 'copilot-reset)
+
+(global-set-key (kbd "C-c C-x C-a") 'copilot-reset-all)
 
 (provide 'copilot)
 
