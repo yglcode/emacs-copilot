@@ -66,7 +66,10 @@
 (defun copilot-reset(role)
   "Clear all LLM conversation from code completion history"
   (interactive)
-  (when-let* ((curfile (buffer-file-name))
+  (when-let* ((curfile (let ((bfname (buffer-file-name)))
+                    (if (not bfname)
+                          (error "*** Please use a buffer bound with a file ***"))
+                    bfname))
               (fname (file-name-base curfile))
               (copilot-data-dir (file-name-concat (file-name-directory curfile) copilot-data-directory))
               (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state")))
@@ -84,7 +87,7 @@
       (let* ((data (json-read))
              (msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
              (changed 0)
-             (i 3))
+             (i 1)) ;;keep 1st system msg
         ;; clear all user-LLM conversation entries, except first 3 messages
         (while (< i (length msgs))
           (remove-nth i msgs)
@@ -97,7 +100,7 @@
         ;; update state file content
         (when (> changed 0)
           ;; log state cleanup message
-          (write-region "copilot: reset copilot-state, code completion history clean up, update file\n" nil logfile 'append 'silent)
+          (write-region (format "copilot(%s): reset copilot-state, code completion history clean up, update file\n" role) nil logfile 'append 'silent)
           (goto-char (point-min))
           (insert (json-encode data))
           (write-region (point-min) (point) copilot-state nil 'silent)))
@@ -141,7 +144,10 @@
   (interactive)
   (let* ((spot (point))
          (inhibit-quit t)
-         (curfile (buffer-file-name))
+         (curfile (let ((bfname (buffer-file-name)))
+                    (if (not bfname)
+                          (error "*** Please use a buffer bound with a file ***"))
+                    bfname))
          (fname (file-name-base curfile))
          (copilot-data-dir (file-name-concat (file-name-directory curfile) copilot-data-directory))
          (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state")))
@@ -151,10 +157,7 @@
          ;; use selected region text for code prompt if available
          ;; or capture code prompt by search backward until empty line or head of file
          (code (if (and beg end)
-                   (progn
-                     ;;(message "selected region: -%s-%s\n" beg end)
                      (buffer-substring-no-properties beg end)
-                     )
                  (save-excursion
                    (beginning-of-line)
                    (while (progn
@@ -197,8 +200,7 @@
             ;; iterate over kill-ring, remove killed items from copilot-state
             (while (< j kill-count)
               (when-let* ((substring (current-kill j t))
-                          (found1 (string-match-p "\n.*\n" substring))
-                          (k 0)
+                          (k 1) ;;skip first system msg
                           (killstr (string-trim (substring-no-properties substring))))
                 (while (< k (length msgs))
                   (when-let* ((msg (elt msgs k))
@@ -211,7 +213,7 @@
                         (if-let* ((found (string-search killstr (string-trim assistant-msg))))
                             (progn 
                               ;; log state cleanup message
-                              (write-region (format "copilot: remove from copilot-state entries %d-%d:\n%s\n" k i assistant-msg) nil logfile 'append 'silent)
+                              (write-region (format "copilot(%s): remove from copilot-state entries %d-%d:\n%s\n" role k i assistant-msg) nil logfile 'append 'silent)
                               (while (>= i k)
                                 (remove-nth i msgs)
                                 (setq i (1- i)))
@@ -232,7 +234,7 @@
             ;; update state file content
             (when (> changed 0)
               ;; log state cleanup message
-              (write-region "copilot: copilot-state updated, update file\n" nil logfile 'append 'silent)
+              (write-region (format "copilot(%s): copilot-state updated, update file\n" role) nil logfile 'append 'silent)
               (goto-char (point-min))
               (insert (json-encode data))
               (write-region (point-min) (point) copilot-state nil 'silent)))
@@ -278,7 +280,7 @@
                           (substring (string-trim (substring-no-properties killstring)))
                           (found (string-search substring new-code)))
                 ;; log state cleanup message
-                (write-region (format "copilot: delete from kill-ring: %s\n" substring) nil logfile 'append 'silent)
+                (write-region (format "copilot(%s): delete from kill-ring: %s\n" role substring) nil logfile 'append 'silent)
                 (setq kill-ring (remove-nth i kill-ring))
                 (setq i (1- i))
                 )

@@ -8,10 +8,11 @@ So this repo was started as an attempt to adapt Justine's nice little package to
 
 During further integration with GPTScript, this package takes on new directions:
 
-    * allow seleting a region of code/text thru emacs region-select as completion target, so we can pass a whole chunk of code (even whole file content) to LLM, thus enable code transformation such as adding docs or annotations to code blocks
-    * support two separate copilot persona:
-        * coder: for clean code generation
-        * expert/teacher: for code review, chat/discussion and code summarization
+  * allow seleting a region of code/text thru emacs region-select as completion target, so we can pass a whole chunk of code (even whole file content) to LLM, thus enable code transformation such as adding docs or annotations to code blocks
+  
+  * support two separate copilot persona:
+    * coder: for clean code generation
+    * expert/teacher: for code review, chat/discussion and code summarization
 
 1. Installation:
    * first [install GPTScript as instructed](https://github.com/gptscript-ai/gptscript).

@@ -24,14 +24,14 @@ BinPath=${Bin%/*}
 
 # init copilot state
 if [ ! -s "$copilot_file" ]; then
-    echo "copilot4emacs: init gptscript chat state" >> $logfile
+    echo "copilot4emacs($copilot_role): init gptscript chat state" >> $logfile
     export GPTSCRIPT_CHAT_STATE=null
     gptscript --default-model "$LLMODEL" --disable-cache $BinPath/"$copilot_role".gpt "do not code this time, just say hi" > $copilot_file 2>> $logfile
 fi
 
 # run gptscript copilot
-echo "copilot4emacs: run gptscript chat to send to LLM: $input" >> $logfile
+echo "copilot4emacs($copilot_role): run gptscript chat to send to LLM: $input" >> $logfile
 export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$copilot_file")
 gptscript --default-model "$LLMODEL" --disable-cache $BinPath/"$copilot_role".gpt $input > "$copilot_file"  2>> $logfile
-echo "copilot4emacs: raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_file)" >> $logfile
+echo "copilot4emacs($copilot_role): raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_file)" >> $logfile
 jq -r '.state.continuation.result' $copilot_file
