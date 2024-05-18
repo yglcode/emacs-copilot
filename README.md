@@ -8,7 +8,9 @@ So this repo was started as an attempt to adapt Justine's nice little package to
 
 During further integration with GPTScript, this package takes on new directions:
 
-  * allow seleting a region of code/text thru emacs region-select as completion target, so we can pass a whole chunk of code (even whole file content) to LLM, thus enable code transformation such as adding docs or annotations to code blocks
+  * allow seleting a region of code/text thru emacs region-select as completion target, so we can pass a whole chunk of code (with multiple incomplete type and function signatures) to LLM, thus enable multi-point completion and code transformation
+  
+  * use documents and comments as generic prompting facility for code transformation and generation
   
   * support two separate copilot persona:
     * coder: for clean code generation
@@ -79,7 +81,30 @@ During further integration with GPTScript, this package takes on new directions:
         ......
         //use above defined Node and Edge types, define a Graph type
         ```
-      * you can also use emacs [region selection](https://www.gnu.org/software/emacs/manual/html_node/emacs/Mark.html) to select a whole region of code and comments (including many types and function definitions) to send to LLM as prompt. You can even select whole file content. Of course the last (few) lines of selected region shoule be incomplete code or comments requesting for specific code generation.
+      * you can also use emacs [region selection](https://www.gnu.org/software/emacs/manual/html_node/emacs/Mark.html) to select a whole region of code and comments (can including many incomplete types and function signatures) to send to LLM as prompt. You can even select whole file content. Of course the last (few) lines of selected region shoule be incomplete code or comments requesting for specific code generation.
+      
+        This can enable multi-points completion scenario: you tell LLMs your "design blueprints" with a region/block of docs/comments, incomplete type prototypes and function signatures, and LLMs will understand your idea and complete all missing parts for you
+        ```go
+        package graph
+
+        type Node struct {
+	        Val string
+
+        type Edge struct {
+	        Val int32
+
+        //type Graph with above Node and Edge types
+
+        func New(directed bool) *Graph
+
+        func (g *Graph) AddEdge(node_v1,node_v2 string, edge_v int32) *Edge
+
+        func (g *Graph) BreadthFirstSearch(src,dest *Node) (path []*Edge)
+
+        func (g *Graph) DepthFirstSearch(src, dest *Node) (path []*Edge)
+
+        //please complete the above code
+        ```
 
    * use documents and comments as generic prompting facility for code transformation and generation.
   
@@ -112,10 +137,11 @@ During further integration with GPTScript, this package takes on new directions:
         }
         //add table driven unit tests for above functions
         ```
-      * generate simple one file program
+      * generate from existing code or specification files
         
         ```go
         //based on the open api spec in petstore.yaml, write a go server serving the api at port 9090
+        //given types in point.go, write a function to calculate distance between two Point2D
         ```
 4. Copilot as expert (code review and chat):
    * actions to start expert conversation
