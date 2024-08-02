@@ -2,9 +2,11 @@
 
 args=($@)
 copilot_role="${args[0]}"
-copilot_file="${args[1]}"
+workspace="${args[1]}"
+copilot_file="${args[2]}"
 copilot_data_dir=${copilot_file%/*}
-logfile="${args[2]}"
+logfile="${args[3]}"
+unset args[3]
 unset args[2]
 unset args[1]
 unset args[0]
@@ -16,7 +18,7 @@ if [ -z "$copilot_data_dir"] || [ -z "$copilot_file"]; then
 fi
 
 if [ ! -d $copilot_data_dir ]; then
-    mkdir $copilot_data_dir
+    mkdir -p $copilot_data_dir
 fi
 
 Bin=$(which copilot4emacs)
@@ -25,13 +27,16 @@ BinPath=${Bin%/*}
 # init copilot state
 if [ ! -s "$copilot_file" ]; then
     echo "copilot4emacs($copilot_role): init gptscript chat state" >> $logfile
-    export GPTSCRIPT_CHAT_STATE=null
-    gptscript --default-model "$LLMODEL" --disable-cache $BinPath/"$copilot_role".gpt "do not code this time, just say hi" > $copilot_file 2>> $logfile
+    gptscript --default-model "$LLMODEL" --disable-cache --disable-tui --chat-state null --save-chat-state-file stdout --workspace "$workspace" --sub-tool $copilot_role $BinPath/copilot4emacs.gpt "do not code this time, just say hi" > $copilot_file 2>> $logfile
 fi
 
 # run gptscript copilot
 echo "copilot4emacs($copilot_role): run gptscript chat to send to LLM: $input" >> $logfile
-export GPTSCRIPT_CHAT_STATE=$(jq '.state' "$copilot_file")
-gptscript --default-model "$LLMODEL" --disable-cache $BinPath/"$copilot_role".gpt $input > "$copilot_file"  2>> $logfile
-echo "copilot4emacs($copilot_role): raw code before cleanup: $(jq -r '.state.continuation.result' $copilot_file)" >> $logfile
-jq -r '.state.continuation.result' $copilot_file
+
+chat_state_file="$copilot_data_dir/chat_state.json"
+jq .state $copilot_file > $chat_state_file
+gptscript --default-model "$LLMODEL" --disable-cache --disable-tui --chat-state "$chat_state_file" --save-chat-state-file stdout --workspace "$workspace" --sub-tool $copilot_role $BinPath/copilot4emacs.gpt $input > "$copilot_file"  2>> $logfile
+rm $chat_state_file
+
+echo "copilot4emacs($copilot_role): raw code before cleanup: $(jq -r '.content' $copilot_file)" >> $logfile
+jq -r '.content' $copilot_file

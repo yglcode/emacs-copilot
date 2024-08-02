@@ -1,0 +1,96 @@
+name: coder
+description: a coder producing consistent clean code
+context: workspace-fs-access
+temperature: 0.1
+chat: true
+
+You are a code generator. You write code using the required programming language. You use tools to find and read files if necessary. You will just create single definition for a type, or a function, or a method, or a class. You will not create complete program. Writing comments is forbidden. Writing test code is forbidden. Writing English explanations is forbidden.
+
+
+---
+name: expert
+description: a software expert or teacher who review code, recommend improvement and give instructions
+context: workspace-fs-access
+tools: search, summarize, count, compare
+chat: true
+
+You are an experienced software engineer and computer science teacher. You give concise and succinct answers to questions. If the answer involve multiple steps, you will do it step by step, do not proceed to next until previous one succeed.
+
+
+---
+
+### a readonly workspace
+
+name: workspace-fs-access
+description: provide read, list, find access to workspace file system
+share tools: sys.read, sys.ls, sys.find
+
+#!/usr/bin/env bash
+wsdir="$GPTSCRIPT_WORKSPACE_DIR"
+if [ -z "${wsdir}" ]; then
+   exit 0
+fi
+curdir=$(pwd)
+
+echo "The workspace directory is \"${wsdir}\"."
+echo "The current working directory is \"${curdir}\"."
+echo "Use best tools to read, list, and find files and directories in \"${wsdir}\"  \"${curdir}\"."
+
+echo "Always use absolute paths to interact with files in the workspace."
+
+
+---
+
+### the following code are copied/adapted from gptscript examples:
+### github.com/gptscript-ai/gptscript/examples/describe-code.gpt
+
+name: summarize
+context: workspace-fs-access
+description: Read a source code file and give a summary of its content
+args: file: The filename to read
+
+First read the passed file and then summarize it's content into no more than 100 words
+
+---
+name: count
+description: Count the lines a file
+arg: file: The filename to count the lines of
+
+#!/usr/bin/env bash
+
+wc -l "${FILE}"
+
+---
+name: compare
+description: Sorts a list of number from smallest to biggest
+arg: list: A comma separated list of numbers to sort
+
+#!/usr/bin/env bash
+
+for i in $(echo "${LIST}" | sed 's/[[,\]]/ /g'); do
+    echo $i
+done | sort -n
+
+
+---
+name: search
+description: Searches the internet for content
+args: query: The query to search for
+tools: sys.http.html2text?
+
+First download the content of "https://html.duckduckgo.com/html/?q=${query}".
+Look for the first 3 search results. Download each search result and look for content
+that would best answer the query ${query}.
+
+With all that information try your best to provide an answer or useful context to ${query}.
+
+If you can not retrieve a referenced URL then just skip that item and make a reference that
+that URL was skipped.
+
+---
+name: robin
+InternalPrompt: false
+temperature: 0.9
+chat: true
+
+Talk like Robin Williams in his crazy funny improvisational style

@@ -48,31 +48,54 @@
   :group 'copilot)
 
 (defcustom copilot-data-directory
-  ".copilot_data"
-  "local directory to save copilot data."
+  (file-name-concat (getenv "HOME") ".copilot4emacs_data")
+  "local directory to save copilot data at top of workspace"
   :type 'string
   :group 'copilot)
 
-;;;###autoload
-(defun copilot-reset-all()
-  "Clear all LLM history"
-  (interactive)
-  (copilot-reset "coder")     
-  (copilot-reset "expert")     
-  (copilot-reset "robin")     
-  )
+(defcustom clangs
+  '("c" "h" "cc" "cpp" "c++" "java" "go" "cs" "rs" "js" "ts" "css" "zig")
+  "programming languages share block comments convention similar to C."
+  :type 'list
+  :group 'copilot)
+
+(defcustom comments-beg-end
+  '(("c" "/***" "***/") ("py" "'''" "'''") ("html" "<!--" "-->")
+    ("rb" "=begin" "=end") ("lua" "--[[" "--]]"))
+  "block comments conventions for languages."
+  :type 'alist
+  :group 'copilot)
+
+(defcustom def-comment-beg-end
+  '("``````chat" "``````")
+  "fallback block comments convention."
+  :type 'list
+  :group 'copilot)
+
+(defvar workspace-dir nil
+  "workspace directory (top of project)")
 
 ;;;###autoload
+(defun copilot-reset-history(role)
+  "Clear LLM conversation from code completion history"
+  (interactive (list (read-string "Clear chat history of [coder, expert, robin, all]: " "coder")))
+  (cond ((member-ignore-case role '("coder" "expert" "robin"))
+         (copilot-reset role))
+        ((string= role "all")
+         (copilot-reset "coder")     
+         (copilot-reset "expert")     
+         (copilot-reset "robin"))
+        (t (error "*** Please choose role from (coder, expert, robin, all) ***"))
+        ))
+  
 (defun copilot-reset(role)
-  "Clear all LLM conversation from code completion history"
-  (interactive)
   (when-let* ((curfile (let ((bfname (buffer-file-name)))
-                    (if (not bfname)
-                          (error "*** Please use a buffer bound with a file ***"))
-                    bfname))
+                         (if (not bfname)
+                             (error "*** Please use a buffer bound with a file ***"))
+                         bfname))
               (fname (file-name-base curfile))
-              (copilot-data-dir (file-name-concat (file-name-directory curfile) copilot-data-directory))
-              (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state")))
+              (copilot-data-dir (file-name-concat (proj-copilot-data-dir curfile) (data-dir-name curfile)))
+              (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state.json")))
               (should-stop (and (file-exists-p copilot-state) (> (file-attribute-size (file-attributes copilot-state)) 0)))
               (logfile (file-name-concat copilot-data-dir (concat fname ".copilot.log")))
               (json-object-type 'hash-table)
@@ -80,12 +103,12 @@
               (json-key-type 'string))
     (save-excursion
       ;; load/decode copilot-state json data and conversation msgs
-      (set-buffer (get-buffer-create "copilot-state"))
+      (set-buffer (get-buffer-create "copilot-state.json"))
       (goto-char (point-min))
       (insert-file-contents copilot-state)
       (goto-char (point-min))
       (let* ((data (json-read))
-             (msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
+             (msgs (gethash "messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
              (changed 0)
              (i 1)) ;;keep 1st system msg
         ;; clear all user-LLM conversation entries, except first 3 messages
@@ -95,7 +118,7 @@
           )
         (puthash "content" "" data)
         (puthash "result" "" (gethash "continuation" (gethash "state" data)))
-        (puthash "results" nil (gethash "state" (gethash "continuation" (gethash "state" data))))
+        ;;(puthash "results" nil (gethash "state" (gethash "continuation" (gethash "state" data))))
 
         ;; update state file content
         (when (> changed 0)
@@ -146,33 +169,40 @@
          (inhibit-quit t)
          (curfile (let ((bfname (buffer-file-name)))
                     (if (not bfname)
-                          (error "*** Please use a buffer bound with a file ***"))
+                        (error "*** Please use a buffer bound with a file ***"))
                     bfname))
+         (ffname (file-name-nondirectory curfile))
          (fname (file-name-base curfile))
-         (copilot-data-dir (file-name-concat (file-name-directory curfile) copilot-data-directory))
-         (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state")))
+         (copilot-data-dir (file-name-concat (proj-copilot-data-dir curfile) (data-dir-name curfile)))
+         (copilot-state (file-name-concat copilot-data-dir (concat fname "." role "-state.json")))
          (logfile (file-name-concat copilot-data-dir (concat fname ".copilot.log")))
-         (lang (file-name-extension curfile))
+         (lang (downcase (file-name-extension curfile)))
 
          ;; use selected region text for code prompt if available
          ;; or capture code prompt by search backward until empty line or head of file
          (code (if (and beg end)
-                     (buffer-substring-no-properties beg end)
+                   (buffer-substring-no-properties beg end)
                  (save-excursion
                    (beginning-of-line)
-                   (while (progn
-                            (previous-line)
-                            (and (> (line-number-at-pos) 1)
-                                 (not (string-match-p "^[[:space:]]*$" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))))))
+                   (if (> (line-number-at-pos) 1)
+                       (while (progn
+                                (previous-line)
+                                (and (> (line-number-at-pos) 1)
+                                     (not (string-match-p "^[[:space:]]*$" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))))
+                                )))
                    (buffer-substring-no-properties (point) spot))
                  ))
 
          ;; create new prompt for this interaction
          (prompt (if (string= role "coder")
                      (format
-                      "[INST]Generate %s code to complete:[/INST]\n%s"
-                      lang code)
+                      ;;"[INST]Generate %s code (to add to file %s) to complete:[/INST]\n```%s\n%s"
+                      ;;lang ffname lang code)
+                      "[INST]Generate %s code to complete:[/INST]\n```%s\n%s"
+                      lang lang code)
                    (format
+                    ;;"[INST]Perform the following action as %s (result add to file %s):[/INST]\n%s"
+                    ;;role ffname code)
                     "[INST]Perform the following action as %s:[/INST]\n%s"
                     role code)
                    )))
@@ -189,12 +219,12 @@
             (json-key-type 'string))
         (save-excursion
           ;; load/decode copilot-state json data and conversation msgs
-          (set-buffer (get-buffer-create "copilot-state"))
+          (set-buffer (get-buffer-create "copilot-state.json"))
           (goto-char (point-min))
           (insert-file-contents copilot-state)
           (goto-char (point-min))
           (let* ((data (json-read))
-                 (msgs (gethash "Messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
+                 (msgs (gethash "messages" (gethash "completion" (gethash "state" (gethash "continuation" (gethash "state" data))))))
                  (changed 0) (j 0)
                  (kill-count (min 10 (length kill-ring))))
             ;; iterate over kill-ring, remove killed items from copilot-state
@@ -242,34 +272,50 @@
           (kill-buffer (current-buffer))
           )))
 
+    (setq beg-end (get-comment-beg-end lang))
+    ;; check if not a program file
+    (setq non-prog (equal beg-end def-comment-beg-end))
+    (if (or (not (string= role "coder")) non-prog)
+        (insert (format "\n%s\n" (nth 0 beg-end))))
+    
     ;; run copilot-bin streaming stdout into buffer catching ctrl-g
     (with-local-quit
       (call-process copilot-bin nil (list (current-buffer) nil) t
                     role
+                    workspace-dir
                     copilot-state
                     logfile
                     prompt))
 
+    (if (or (not (string= role "coder")) non-prog)
+        (insert (format "\n%s\n" (nth 1 beg-end))))
+    
     ;; get rid of most markdown syntax
     (let* ((end (point))
-           (mdstr (concat "```" lang))
-           (mdlen (length mdstr)))
+           (mdtail "```")
+           (mdhead "```[a-zA-z]*"))
       (save-excursion
         ;; cleanup raw code
-        (when (string= role "coder")
+        (when (and (string= role "coder") (not non-prog))
           (goto-char spot)
           (while (search-forward "\\_" end t)
             (backward-char)
             (delete-backward-char 1 nil)
             (setq end (- end 1)))
+          ;; remove heading text
           (goto-char spot)
-          (while (search-forward mdstr end t)
-            (delete-backward-char mdlen nil)
-            (setq end (- end mdlen)))
-          (goto-char spot)
-          (while (search-forward "```" end t)
-            (delete-backward-char 3 nil)
-            (setq end (- end 3))))
+          (when-let* ((pos (search-forward-regexp mdhead end t))
+                      (hlen (- pos spot)))
+            (goto-char (1+ pos)) ;;remove next space or newline
+            (delete-backward-char (1+ hlen) nil)
+            (setq end (- end hlen)))
+          ;; remove trailing text
+          (goto-char end)
+          (when-let* ((pos (search-backward mdtail spot t))
+                      (tlen (- end pos)))
+            (goto-char end)
+            (delete-backward-char tlen nil)
+            (setq end (- end tlen))))
         ;; update kill-ring
         (when kill-ring
           (let ((new-code (string-trim (buffer-substring-no-properties spot end)))
@@ -296,29 +342,70 @@
       (setcdr last (cddr last))
       list)))
 
+;; std file-name-concat added at emacs version 28.1, add a substitute here
+(defun file-name-concat (dir fname)
+  (concat (file-name-as-directory dir) fname))
 
-;; define `ctrl-c ctrl-k` keybinding for llm code completion
+(defun proj-copilot-data-dir(file-name)
+  (file-name-concat copilot-data-directory (ws-dir-name file-name)))
+
+(defun ws-dir(file-name)
+  (progn
+    (if (null workspace-dir)
+        (setq workspace-dir (read-string "Workspace directory (top of project): " (file-name-directory file-name)))
+      ;; move outside current workspace
+      (if (string-prefix-p "../" (file-relative-name file-name workspace-dir))
+          (setq workspace-dir (read-string (format "Workspace directory (current: %s): " workspace-dir) (file-name-directory file-name)))))
+    workspace-dir))
+
+(defun data-name(fname)
+  (let* ((dname (combine-and-quote-strings (split-string fname "[\\\/]+") "-")))
+    (if (string-prefix-p "-" dname)
+        (substring dname 1)
+    dname)))
+
+(defun ws-dir-name(file-name)
+  (let* ((wsdir (directory-file-name (ws-dir file-name)))
+         (homedir (getenv "HOME")))
+    (if (equal t (compare-strings homedir 0 (length homedir) wsdir 0 (length homedir) 'true))
+        (setq wsdir (file-relative-name wsdir homedir)))
+    (data-name wsdir)))
+
+(defun data-dir-name (file-name)
+  (let* ((wsdir (ws-dir file-name))
+         (fname file-name))
+    (if (equal t (compare-strings wsdir 0 (length wsdir) file-name 0 (length wsdir) 'true))
+        (setq fname (file-relative-name file-name wsdir)))
+    (data-name fname)))
+
+(defun get-comment-beg-end(lang)
+  (progn
+    (if (member lang clangs)
+        (setq lang "c"))
+    (setq comm (cdr (assoc lang comments-beg-end)))
+    (if (not comm)
+        (setq comm def-comment-beg-end))
+    comm))
+
+;; define keybinding for llm code completion
 (defun copilot-c-hook ()
-  (define-key c-mode-base-map (kbd "C-c C-k") 'copilot-complete))
+  (define-key c-mode-base-map (kbd "C-c C-x C-k") 'copilot-complete))
 (add-hook 'c-mode-common-hook 'copilot-c-hook)
 (defun copilot-py-hook ()
-  (define-key python-mode-map (kbd "C-c C-k") 'copilot-complete))
+  (define-key python-mode-map (kbd "C-c C-x C-k") 'copilot-complete))
 (add-hook 'python-common-hook 'copilot-py-hook)
 (defun copilot-go-hook ()
-  (define-key go-mode-map (kbd "C-c C-k") 'copilot-complete))
+  (define-key go-mode-map (kbd "C-c C-x C-k") 'copilot-complete))
 (add-hook 'go-common-hook 'copilot-go-hook)
 (defun copilot-java-hook ()
-  (define-key java-mode-map (kbd "C-c C-k") 'copilot-complete))
+  (define-key java-mode-map (kbd "C-c C-x C-k") 'copilot-complete))
 (add-hook 'java-common-hook 'copilot-java-hook)
 
-(global-set-key (kbd "C-c C-k") 'copilot-complete)
-(global-set-key (kbd "C-c C-x C-k") #'(lambda() (interactive) (copilot-reset "coder")))
-(global-set-key (kbd "C-c C-e") 'copilot-expert)
-(global-set-key (kbd "C-c C-x C-e") #'(lambda() (interactive) (copilot-reset "expert")))
-(global-set-key (kbd "C-c C-y") 'copilot-robin)
-(global-set-key (kbd "C-c C-x C-y") #'(lambda() (interactive) (copilot-reset "robin")))
+(global-set-key (kbd "C-c C-x C-k") 'copilot-complete)
+(global-set-key (kbd "C-c C-x C-e") 'copilot-expert)
+(global-set-key (kbd "C-c C-x C-y") 'copilot-robin)
 
-(global-set-key (kbd "C-c C-x C-a") 'copilot-reset-all)
+(global-set-key (kbd "C-c C-x C-r") 'copilot-reset-history)
 
 (provide 'copilot)
 
