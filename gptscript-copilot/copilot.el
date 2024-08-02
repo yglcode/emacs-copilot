@@ -276,7 +276,7 @@
     ;; check if not a program file
     (setq non-prog (equal beg-end def-comment-beg-end))
     (if (or (not (string= role "coder")) non-prog)
-        (insert (format "\n%s\n" (nth 0 beg-end))))
+        (insert (format "\n\n%s\n" (nth 0 beg-end))))
     
     ;; run copilot-bin streaming stdout into buffer catching ctrl-g
     (with-local-quit
@@ -288,7 +288,7 @@
                     prompt))
 
     (if (or (not (string= role "coder")) non-prog)
-        (insert (format "\n%s\n" (nth 1 beg-end))))
+        (insert (format "\n%s\n\n" (nth 1 beg-end))))
     
     ;; get rid of most markdown syntax
     (let* ((end (point))
